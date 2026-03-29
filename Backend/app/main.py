@@ -1,40 +1,40 @@
-from fastapi import FastAPI, Depends
-from app.schemas import Event
-from sqlalchemy.orm import Session
-from .database import get_db, engine
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from .database import engine
 import app.models as models
+from app.api.routes.events import router as events_router
+from app.api.routes.ai import router as ai_router
+
+
 
 models.Base.metadata.create_all(bind=engine) # creates the database tables based on the defined models
 
 app = FastAPI()
 
+
 @app.get("/user/{name}")
 async def get_user(name: str):
     return {"message": f"Hello, {name}!"}
 
-@app.post("/events")
-async def create_event(event: Event, db: Session = Depends(get_db)):
-    new_event = models.Event(
-        user_id=event.user_id,
-        event_name=event.event_name,
-    )
-    db.add(new_event)
-    db.commit()
-    db.refresh(new_event)
+# 1. Define the "Origins" that are allowed to talk to your server
+origins = [
+    "http://localhost:5173",  # Your React/Vite dev server
+    "http://127.0.0.1:5173",
+    "http://localhost:3000"
+]
 
-    for key, value in event.properties.items():
-        event_property = models.EventProperty(
-            event_id=new_event.id,
-            key=key,
-            value=value
-        )
-        db.add(event_property)
-    db.commit()
-
-    return new_event
+# CORS middleware to allow requests from the Next.js frontend
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins, # Your Next.js URL
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
-@app.get("/events")
-async def get_events(db: Session = Depends(get_db)):
-    events = db.query(models.Event).all()
-    return {"events": events}
+app.include_router(events_router) # include the router from the events module to handle API endpoints related to events
+app.include_router(ai_router) # include the router from the ai module to handle API endpoints related
+
+
+
